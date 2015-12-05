@@ -1,7 +1,7 @@
 package com.raduy.scalegro
 
 import akka.actor.{Actor, ActorLogging}
-import com.raduy.scalegro.Auction.{YouWonAuctionEvent, BiggerOfferReceivedEvent, BidCommand}
+import com.raduy.scalegro.Auction.{BidCommand, BiggerOfferReceivedEvent, TooLittleOfferGivenEvent, YouWonAuctionEvent}
 import com.raduy.scalegro.AuctionSearch.{FindByKeyWordQuery, QueryResultEvent}
 import com.raduy.scalegro.Buyer.LookForDesiredItemCommand
 import com.raduy.scalegro.Seller.AuctionRef
@@ -11,10 +11,8 @@ import com.raduy.scalegro.Seller.AuctionRef
   */
 class Buyer(name: String, keyword: String, budget: BigDecimal) extends Actor with ActorLogging {
 
-  val FACTOR: Double = 1.1
-
   def haveEnoughMoney(actualOffer: BigDecimal): Boolean = {
-    FACTOR * actualOffer < budget
+    1.0 + actualOffer < budget
   }
 
   override def receive: Receive = {
@@ -27,12 +25,20 @@ class Buyer(name: String, keyword: String, budget: BigDecimal) extends Actor wit
 
     case QueryResultEvent(keyword: String, auctions: Set[AuctionRef]) => {
       val auctionRef: AuctionRef = auctions.iterator.next()
-      auctionRef.auction ! BidCommand(budget, self)
+
+      auctionRef.auction ! BidCommand(1.0, self)
     }
 
     case BiggerOfferReceivedEvent(actualOffer: BigDecimal) => {
+      Thread.sleep(500)
       if (haveEnoughMoney(actualOffer)) {
-        sender() ! BidCommand(FACTOR * actualOffer, self)
+        sender() ! BidCommand(actualOffer + 1.0, self)
+      }
+    }
+
+    case TooLittleOfferGivenEvent(actualOffer: BigDecimal) => {
+      if (haveEnoughMoney(actualOffer)) {
+        sender() ! BidCommand(actualOffer + 1.0, self)
       }
     }
   }
@@ -41,6 +47,8 @@ class Buyer(name: String, keyword: String, budget: BigDecimal) extends Actor wit
 }
 
 case object Buyer {
+
   //commands accepted by this actor
   case object LookForDesiredItemCommand
+
 }

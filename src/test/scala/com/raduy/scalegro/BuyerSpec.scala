@@ -14,7 +14,7 @@ with BeforeAndAfterAll
 with ImplicitSender with GivenWhenThen {
 
   override def afterAll = {
-    system.shutdown()
+    system.terminate()
   }
 
   "Buyer" should {
@@ -28,7 +28,7 @@ with ImplicitSender with GivenWhenThen {
       auction.send(buyer, BiggerOfferReceivedEvent(20000))
 
       Then("buyer sends bigger offer if can afford")
-      auction.expectMsg(BidCommand(22000, buyer))
+      auction.expectMsg(BidCommand(20001, buyer))
     }
 
     "not send new offer when someone gave bigger offer but buyer don't have more money to spend" in {

@@ -1,9 +1,9 @@
 package com.raduy.scalegro
 
-import akka.actor.{Props, ActorRef, ActorSystem}
-import akka.testkit.{TestProbe, ImplicitSender, TestKit}
+import akka.actor.{ActorRef, ActorSystem, Props}
+import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import com.raduy.scalegro.AuctionSearch.RegisterAuctionCommand
-import com.raduy.scalegro.Seller.{StartAuctionsCommand, AuctionRef}
+import com.raduy.scalegro.Seller.StartAuctionsCommand
 import org.scalatest.{BeforeAndAfterAll, GivenWhenThen, WordSpecLike}
 
 /**
@@ -16,7 +16,7 @@ with ImplicitSender with GivenWhenThen {
 
 
   override def afterAll = {
-    system.shutdown()
+    system.terminate()
   }
 
 
