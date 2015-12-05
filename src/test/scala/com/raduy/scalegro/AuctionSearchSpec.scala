@@ -16,7 +16,7 @@ with ImplicitSender with GivenWhenThen {
 
 
   override def afterAll = {
-    system.shutdown()
+    system.terminate()
   }
 
   val seller = TestProbe()
