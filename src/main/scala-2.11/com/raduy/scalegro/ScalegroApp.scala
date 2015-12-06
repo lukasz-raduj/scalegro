@@ -47,7 +47,7 @@ object ScalegroApp extends App {
 
   println(
     "\n*******************************************\n" +
-      "********* AUCTION PUBLISHER UP!!!! ******\n" +
+      "********* AUCTION PUBLISHER UP!!!! ********\n" +
       "*******************************************\n")
 
   auctionPublisherSystem.actorOf(Props[AuctionPublisher], "auction-publisher")
