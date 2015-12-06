@@ -37,6 +37,7 @@ class Buyer(name: String, keyword: String, budget: BigDecimal) extends Actor wit
     }
 
     case TooLittleOfferGivenEvent(actualOffer: BigDecimal) => {
+      Thread.sleep(500)
       if (haveEnoughMoney(actualOffer)) {
         sender() ! BidCommand(actualOffer + 1.0, self)
       }

@@ -7,6 +7,7 @@ import akka.testkit._
 import com.raduy.scalegro.Auction._
 import com.raduy.scalegro.AuctionSearch.{RegisterAuctionCommand, UnregisterAuctionCommand}
 import com.raduy.scalegro.Seller.AuctionRef
+import com.raduy.scalegro.notifier.Notifier.NewOfferInAuctionNotification
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, GivenWhenThen, WordSpecLike}
 
 /**
@@ -22,6 +23,7 @@ with ImplicitSender with GivenWhenThen {
   var auctionTitle: String = _
   var auction: ActorRef = _
   var bidder: TestProbe = _
+  var notifier: TestProbe = _
 
   override protected def beforeEach(): Unit = {
     seller = TestProbe()
@@ -29,7 +31,8 @@ with ImplicitSender with GivenWhenThen {
     auctionTitle = UUID.randomUUID().toString()
     bidder = TestProbe()
 
-    auction = system.actorOf(Props(new Auction(auctionTitle, seller.ref, auctionSearch.ref)))
+    notifier = TestProbe()
+    auction = system.actorOf(Props(new Auction(auctionTitle, seller.ref, auctionSearch.ref, notifier.ref)))
     auction ! StartAuctionCommand
   }
 
@@ -54,13 +57,25 @@ with ImplicitSender with GivenWhenThen {
     "register itself in AuctionSearch just before start" in {
       Given("seller actor")
       val auctionSearch = TestProbe()
-      val seller = TestProbe().ref
+      val seller = TestProbe()
+      val notifier = TestProbe()
 
       When("creating new auction")
-      val auction: ActorRef = system.actorOf(Props(new Auction("Audi RS6", seller, auctionSearch.ref)))
+      val auction: ActorRef = system.actorOf(Props(new Auction("Audi RS6", seller.ref, auctionSearch.ref, notifier.ref)))
 
       Then("new auction was registered in auction search")
       auctionSearch expectMsg RegisterAuctionCommand(AuctionRef("Audi RS6", auction))
+    }
+
+    "send notification to notifier when new offer received" in {
+      Given("auction without any offers")
+      auctionSearch.expectMsg(RegisterAuctionCommand(AuctionRef(auctionTitle, auction)))
+
+      When("new offers came")
+      auction ! BidCommand(100.0, bidder.ref)
+
+      Then("notifier should receive notification")
+      notifier.expectMsg(NewOfferInAuctionNotification(auctionTitle, 100.0, bidder.ref))
     }
 
 

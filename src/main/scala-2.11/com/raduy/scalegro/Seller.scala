@@ -1,16 +1,15 @@
 package com.raduy.scalegro
 
-import java.time.LocalDateTime
-
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import com.raduy.scalegro.Auction.{StartAuctionCommand, AuctionSoldEvent}
-import com.raduy.scalegro.AuctionSearch.{AuctionUnregisteredEvent, AuctionRegisteredEvent, UnregisterAuctionCommand}
-import com.raduy.scalegro.Seller.{StartAuctionsCommand, AuctionRef}
+import com.raduy.scalegro.Auction.{AuctionSoldEvent, StartAuctionCommand}
+import com.raduy.scalegro.AuctionSearch.{AuctionRegisteredEvent, AuctionUnregisteredEvent}
+import com.raduy.scalegro.Seller.{AuctionRef, StartAuctionsCommand}
 
 /**
   * @author Łukasz Raduj 2015.
   */
-class Seller(name: String, auctionToStart: List[String], auctionSearch: ActorRef) extends Actor with ActorLogging {
+class Seller(name: String, auctionToStart: List[String], auctionSearch: ActorRef, notifier: ActorRef)
+  extends Actor with ActorLogging {
 
   var onGoingAuctions: List[AuctionRef] = List()
 
@@ -18,11 +17,9 @@ class Seller(name: String, auctionToStart: List[String], auctionSearch: ActorRef
 
   override def receive: Receive = {
     case StartAuctionsCommand => {
-      val now: LocalDateTime = LocalDateTime.now
-
       auctionToStart.foreach {
         auctionTitle =>
-          val newAuction: ActorRef = system.actorOf(Props(new Auction(auctionTitle, self, auctionSearch)))
+          val newAuction: ActorRef = system.actorOf(Props(new Auction(auctionTitle, self, auctionSearch, notifier)))
           newAuction ! StartAuctionCommand
       }
     }
@@ -48,4 +45,5 @@ case object Seller {
   case class StartAuctionsCommand()
 
   case class AuctionRef(title: String, auction: ActorRef)
+
 }

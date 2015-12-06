@@ -28,7 +28,8 @@ with ImplicitSender with GivenWhenThen {
 
       And("seller")
       val auctionSearch = TestProbe()
-      val seller: ActorRef = system.actorOf(Props(new Seller("Mirek", auctions, auctionSearch.ref)))
+      val notifier = TestProbe()
+      val seller: ActorRef = system.actorOf(Props(new Seller("Mirek", auctions, auctionSearch.ref, notifier.ref)))
 
 
       When("it's time to start auctions")

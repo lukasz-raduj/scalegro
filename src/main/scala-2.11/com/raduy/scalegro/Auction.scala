@@ -9,6 +9,8 @@ import akka.persistence.fsm.PersistentFSM
 import com.raduy.scalegro.Auction.AuctionEvents.{AuctionEvent, _}
 import com.raduy.scalegro.Auction._
 import com.raduy.scalegro.AuctionSearch.{AuctionRegisteredEvent, AuctionUnregisteredEvent, RegisterAuctionCommand, UnregisterAuctionCommand}
+import com.raduy.scalegro.notifier.Notifier
+import Notifier.{AuctionStartedNotification, NewOfferInAuctionNotification}
 import com.raduy.scalegro.Seller.AuctionRef
 
 import scala.concurrent.duration.Duration
@@ -17,7 +19,7 @@ import scala.reflect.ClassTag
 /**
   * @author Łukasz Raduj 2015.
   */
-class Auction(title: String, seller: ActorRef, auctionSearch: ActorRef)
+class Auction(title: String, seller: ActorRef, auctionSearch: ActorRef, notifier: ActorRef)
   extends PersistentFSM[AuctionState, AuctionData, AuctionEvent] with ActorLogging {
 
   var price: BigDecimal = 0
@@ -27,13 +29,13 @@ class Auction(title: String, seller: ActorRef, auctionSearch: ActorRef)
 
   //for demo purposes only!
   var processedEventsCounter = 0
-  var recoveryStartupDateTime = LocalDateTime.now()
+  val recoveryStartupDateTime = LocalDateTime.now()
 
   import context.dispatcher
 
   override def domainEventClassTag: ClassTag[AuctionEvent] = ClassTag(classOf[AuctionEvent])
 
-  override def persistenceId: String = s"auction1.0-$title"
+  override def persistenceId: String = s"auction2.0-$title"
 
   private def deleteItem() = {
     log.debug("Deleting sold auction with title '{}'", title)
@@ -62,14 +64,18 @@ class Auction(title: String, seller: ActorRef, auctionSearch: ActorRef)
   }
 
   when(Created) {
-    case Event(BidCommand(offer: BigDecimal, bidder: ActorRef), NoOffer) =>
-      log.debug("First offer in '{}' received! Offer value: {}", title, offer)
-      goto(Activated) applying BidOfferReceivedEvent(offer, bidder)
-
     case Event(ScheduleBidTimerCommand(finishDate: LocalDateTime), NoOffer) =>
       stay() applying AuctionFinishScheduledEvent(finishDate) andThen {
         case _ =>
           scheduleBidTimer(finishDate)
+          notifier ! AuctionStartedNotification(title)
+      }
+
+    case Event(BidCommand(offer: BigDecimal, bidder: ActorRef), NoOffer) =>
+      log.debug("First offer in '{}' received! Offer value: {}", title, offer)
+      goto(Activated) applying BidOfferReceivedEvent(offer, bidder) andThen {
+        case _ =>
+          notifyPublisherAboutNewOffer(offer, bidder)
       }
 
     case Event(FinishAuctionCommand, NoOffer) =>
@@ -90,11 +96,17 @@ class Auction(title: String, seller: ActorRef, auctionSearch: ActorRef)
       stay()
   }
 
+  def notifyPublisherAboutNewOffer(offer: BigDecimal, bidder: ActorRef) = {
+    notifier ! NewOfferInAuctionNotification(title, offer, bidder)
+  }
 
   when(Activated) {
     case Event(BidCommand(offer: BigDecimal, bidder: ActorRef), o: Offer) => {
       log.debug("New offer in '{}' auction! Offer value: {}", title, offer)
-      stay() applying BidOfferReceivedEvent(offer, bidder)
+      stay() applying BidOfferReceivedEvent(offer, bidder) andThen {
+        case _ =>
+          notifyPublisherAboutNewOffer(offer, bidder)
+      }
     }
 
     case Event(FinishAuctionCommand, o: Offer) => {
@@ -217,7 +229,7 @@ class Auction(title: String, seller: ActorRef, auctionSearch: ActorRef)
       processedEventsCounter,
       recoveryStartupDateTime.until(LocalDateTime.now(), ChronoUnit.MILLIS))
 
-    log.debug("Auction with id : {} recovered to state: {} and offer {}", persistenceId, this.stateName, this.stateData)
+    log.debug("Auction with id : {} recovered to state: {} and offer {}", persistenceId, stateName, stateData)
   }
 
   def isAuctionInitialized: Boolean = {
@@ -225,7 +237,7 @@ class Auction(title: String, seller: ActorRef, auctionSearch: ActorRef)
   }
 
   override def toString: String = {
-    "Auction with title: " + title + " state: " + stateName + " and data: " + stateData
+    s"Auction with title: $title state: $stateName and data: $stateData"
   }
 }
 
@@ -254,9 +266,6 @@ case object Auction {
 
   case class TooLittleOfferGivenEvent(actualOffer: BigDecimal)
 
-
-  case object AuctionEvent
-
   object AuctionEvents {
 
     sealed trait AuctionEvent
@@ -268,5 +277,7 @@ case object Auction {
     case class AuctionFinishedEvent(finishedAtDate: LocalDateTime) extends AuctionEvent
 
     case class AuctionStartedEvent(endDate: LocalDateTime, seller: ActorRef) extends AuctionEvent
+
   }
+
 }
